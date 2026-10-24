@@ -195,7 +195,7 @@ func TestNextIntoFullQueueReturnsTheResultingIdleState(t *testing.T) {
 	hub.handle(clients[0], Command{Type: "chat.next", RequestID: "next", RoomID: room})
 	event := <-clients[0].send
 	payload := event.Payload.(ErrorPayload)
-	if event.Type != "error" || payload.Code != "queue_full" || payload.State != "idle" || clients[0].RoomID != "" {
+	if event.Type != "error" || event.RoomID != room || event.RequestID != "next" || payload.Code != "queue_full" || payload.State != "idle" || clients[0].RoomID != "" {
 		t.Fatal("queue rejection left the requester in the old room")
 	}
 	assertMembership(t, hub)

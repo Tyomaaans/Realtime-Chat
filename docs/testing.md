@@ -48,7 +48,7 @@ The backend retained its normal 500 global connections, 500 queue entries, 256 h
 
 Recorded on 2026-10-24. All backend formatting, vet, behavior, race, and build checks passed. Frontend installation from the lockfile, lint, typecheck, 29 Vitest tests, build, and the three-context Playwright scenario passed. The browser scenario reported no uncaught page errors, and its default run left tracked screenshots unchanged.
 
-The final backend binary produced these sustained-traffic results. All queue joins used the documented 10 ms spacing, and the traffic window started after matching. CPU and RSS refer to the backend process; the load client ran separately on the same host.
+The backend produced these sustained-traffic results. All queue joins used the documented 10 ms spacing, and the traffic window started after matching. CPU and RSS refer to the backend process; the load client ran separately on the same host.
 
 | Sockets / rooms | Duration | Sent / received | Errors | p50 / p95 (ms) | Mean CPU | Sampled peak / final RSS (KiB) | Active goroutines |
 | --- | --- | --- | --- | --- | --- | --- | --- |

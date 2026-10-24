@@ -188,7 +188,9 @@ func (h *Hub) handle(c *client, command Command) {
 			h.reject(c, command, ErrInvalidState)
 			return
 		}
-		h.join(c, command.RequestID)
+		if err := h.join(c, command.RequestID); err != nil {
+			h.reject(c, command, err)
+		}
 		return
 	}
 	if command.Type == "queue.cancel" {
@@ -226,7 +228,9 @@ func (h *Hub) handle(c *client, command Command) {
 		}
 		h.endRoom(c, reason)
 		if command.Type == "chat.next" {
-			h.join(c, command.RequestID)
+			if err := h.join(c, command.RequestID); err != nil {
+				h.reject(c, command, err)
+			}
 			return
 		}
 		h.emit(c, Event{Type: "peer.left", RequestID: command.RequestID, RoomID: command.RoomID, Payload: StatePayload{State: "idle", Reason: reason}})
@@ -246,11 +250,11 @@ func (h *Hub) handle(c *client, command Command) {
 	}
 }
 
-func (h *Hub) join(c *client, requestID string) {
+func (h *Hub) join(c *client, requestID string) error {
 	if entry := h.queued[c.ID]; entry != nil {
 		waiting := entry.Value.(waitEntry)
 		h.emit(c, waitingEvent(requestID, waiting.expiresAt))
-		return
+		return nil
 	}
 	for element := h.queue.Front(); element != nil; element = element.Next() {
 		waiting := element.Value.(waitEntry)
@@ -260,8 +264,7 @@ func (h *Hub) join(c *client, requestID string) {
 		}
 		id, err := randomID()
 		if err != nil {
-			h.reject(c, Command{RequestID: requestID}, ErrInternal)
-			return
+			return ErrInternal
 		}
 		h.dequeue(peer)
 		h.rooms[id] = domain.Room{ID: id, Members: [2]string{peer.ID, c.ID}}
@@ -272,18 +275,18 @@ func (h *Hub) join(c *client, requestID string) {
 		if c.State == domain.Matched {
 			h.emit(c, Event{Type: "chat.matched", RoomID: id, RequestID: requestID, Payload: StatePayload{State: "matched"}})
 		} else if h.clients[c.ID] == c {
-			h.join(c, requestID)
+			return h.join(c, requestID)
 		}
-		return
+		return nil
 	}
 	if h.queue.Len() >= h.cfg.QueueCapacity {
-		h.reject(c, Command{RequestID: requestID}, ErrQueueFull)
-		return
+		return ErrQueueFull
 	}
 	expiresAt := time.Now().Add(h.cfg.QueueWait)
 	c.State = domain.Waiting
 	h.queued[c.ID] = h.queue.PushBack(waitEntry{client: c, requestID: requestID, expiresAt: expiresAt})
 	h.emit(c, waitingEvent(requestID, expiresAt))
+	return nil
 }
 
 func (h *Hub) dequeue(c *client) {
