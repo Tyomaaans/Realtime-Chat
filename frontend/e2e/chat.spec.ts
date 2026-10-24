@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+const captureScreenshots = process.env.CHAT_CAPTURE_SCREENSHOTS === "1";
+
 test("three browser sessions complete a private conversation lifecycle", async ({ browser }) => {
   const first = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const second = await browser.newContext({ viewport: { width: 320, height: 800 } });
@@ -17,7 +19,7 @@ test("three browser sessions complete a private conversation lifecycle", async (
     await c.getByRole("button", { name: "Start chatting" }).click();
     await c.getByRole("button", { name: "Cancel search" }).click();
     await expect(c.getByRole("button", { name: "Find someone", exact: true })).toBeVisible();
-    await b.screenshot({ path: "../docs/screenshots/mobile.png", fullPage: true });
+    if (captureScreenshots) await b.screenshot({ path: "../docs/screenshots/mobile.png", fullPage: true });
     expect(await b.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await a.getByRole("button", { name: "Start chatting" }).click();
     await expect(a.getByRole("button", { name: "Cancel search" })).toBeVisible();
@@ -26,7 +28,7 @@ test("three browser sessions complete a private conversation lifecycle", async (
     await a.getByRole("textbox").fill("Hello from this tab.");
     await a.getByRole("textbox").press("Enter");
     await expect(b.getByText("Hello from this tab.", { exact: true })).toBeVisible();
-    await b.screenshot({ path: "../docs/screenshots/mobile-chat.png", fullPage: true });
+    if (captureScreenshots) await b.screenshot({ path: "../docs/screenshots/mobile-chat.png", fullPage: true });
     const markup = '<img src=x onerror="window.xssExecuted=true">';
     await b.getByRole("textbox").fill(markup);
     await b.getByRole("textbox").press("Enter");
@@ -49,7 +51,7 @@ test("three browser sessions complete a private conversation lifecycle", async (
     await c.getByRole("textbox").fill("A good conversation is a nice start.");
     await c.getByRole("textbox").press("Enter");
     await expect(a.getByText("A good conversation is a nice start.", { exact: true })).toBeVisible();
-    await a.screenshot({ path: "../docs/screenshots/desktop.png", fullPage: true });
+    if (captureScreenshots) await a.screenshot({ path: "../docs/screenshots/desktop.png", fullPage: true });
     await c.close();
     await expect(a.getByText("The other person left. Your messages have been cleared.")).toBeVisible();
     await expect(a.getByText("Hi! What made you smile today?", { exact: true })).toHaveCount(0);
