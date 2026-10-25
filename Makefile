@@ -1,33 +1,38 @@
-.PHONY: install backend frontend check check-backend check-frontend browser load
+.PHONY: install backend frontend build check test-critical test browser load format
 
 install:
-	cd backend && go mod download
+	$(MAKE) -C backend install
 	cd frontend && npm ci
 
 backend:
-	cd backend && go run .
+	$(MAKE) -C backend run
 
 frontend:
 	cd frontend && npm run dev
 
-check: check-backend check-frontend
-
-check-backend:
-	cd backend && test -z "$$(gofmt -l .)"
-	cd backend && go vet ./...
-	cd backend && go test ./...
-	cd backend && go test -race ./...
-	cd backend && go build ./...
-
-check-frontend:
-	cd frontend && npm run lint
-	cd frontend && npm run typecheck
-	cd frontend && npm run test
+build:
+	$(MAKE) -C backend build
 	cd frontend && npm run build
+
+check:
+	$(MAKE) -C backend format-check vet
+	cd frontend && npm run format:check && npm run lint && npm run build
+
+test-critical:
+	$(MAKE) -C backend test-critical
+	cd frontend && npm run test:critical
+
+test:
+	$(MAKE) -C backend test
+	cd frontend && npm run test
 
 browser:
 	cd frontend && npm run test:browser
 
 LOAD_ARGS ?= -sockets 100 -duration 30s
 load:
-	cd backend && go run ../scripts/loadtest/main.go $(LOAD_ARGS)
+	$(MAKE) -C backend load LOAD_ARGS="$(LOAD_ARGS)"
+
+format:
+	$(MAKE) -C backend format
+	cd frontend && npm run format

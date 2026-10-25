@@ -61,9 +61,11 @@ func NewConfig() (AppConfig, error) {
 	if value, ok := os.LookupEnv("CHAT_ADDRESS"); ok {
 		cfg.Address = value
 	}
+
 	if value, ok := os.LookupEnv("CHAT_ORIGINS"); ok {
 		cfg.Origins = strings.Split(value, ",")
 	}
+
 	integers := []struct {
 		name  string
 		value *int
@@ -86,9 +88,11 @@ func NewConfig() (AppConfig, error) {
 			if err != nil || parsed <= 0 || parsed > 1000000 {
 				return AppConfig{}, fmt.Errorf("CHAT_%s must be between 1 and 1000000", setting.name)
 			}
+
 			*setting.value = parsed
 		}
 	}
+
 	durations := []struct {
 		name  string
 		value *time.Duration
@@ -108,12 +112,15 @@ func NewConfig() (AppConfig, error) {
 			if err != nil || parsed <= 0 || parsed > 24*time.Hour {
 				return AppConfig{}, fmt.Errorf("CHAT_%s must be a positive duration up to 24h", setting.name)
 			}
+
 			*setting.value = parsed
 		}
 	}
+
 	if err := cfg.Validate(); err != nil {
 		return AppConfig{}, err
 	}
+
 	return cfg, nil
 }
 
@@ -124,23 +131,29 @@ func (c AppConfig) Validate() error {
 	if err != nil || ip == nil || !ip.IsLoopback() || portErr != nil || portNumber < 1 || portNumber > 65535 {
 		return fmt.Errorf("CHAT_ADDRESS must contain a loopback IP and a port from 1 to 65535")
 	}
+
 	if c.QueueCapacity > c.MaxConnections || c.MaxConnectionsPerIP > c.MaxConnections {
 		return fmt.Errorf("queue and per-IP capacities cannot exceed connection capacity")
 	}
+
 	if c.MessageBytes > c.FrameBytes || c.MessageCharacters > c.MessageBytes || c.FrameBytes > 1<<20 {
 		return fmt.Errorf("message limits must fit the frame limit; frames cannot exceed 1 MiB")
 	}
+
 	if c.PingInterval >= c.PongWait || c.ShutdownTimeout > 10*time.Second {
 		return fmt.Errorf("ping must be shorter than pong wait; shutdown cannot exceed 10s")
 	}
+
 	for _, origin := range c.Origins {
 		parsed, err := url.Parse(origin)
 		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" || strings.Contains(origin, "*") {
 			return fmt.Errorf("CHAT_ORIGINS must contain exact origins without paths or wildcards")
 		}
+
 		if origin != parsed.Scheme+"://"+parsed.Host || parsed.Hostname() == "" || strings.HasSuffix(parsed.Host, ":") {
 			return fmt.Errorf("CHAT_ORIGINS must contain exact scheme, host, and optional port")
 		}
+
 		if parsed.Port() != "" {
 			port, err := strconv.Atoi(parsed.Port())
 			if err != nil || port < 1 || port > 65535 {
@@ -148,5 +161,6 @@ func (c AppConfig) Validate() error {
 			}
 		}
 	}
+
 	return nil
 }

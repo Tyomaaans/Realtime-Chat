@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
-	"realtime-chat/internal/chat"
+	"realtime-chat/internal/chat/session"
 	"realtime-chat/internal/config"
 	"realtime-chat/internal/middleware"
 	"realtime-chat/internal/router"
@@ -36,10 +36,10 @@ func run(ctx context.Context, logger zerolog.Logger) error {
 	}
 
 	gin.SetMode(gin.ReleaseMode)
-	hub := chat.NewHub(cfg)
+	hub := session.NewHub(cfg)
 	admission := middleware.NewAdmission(cfg)
-	chatSvc := chat.NewChatService(hub, cfg)
-	chatHandler := chat.NewChatHandler(chatSvc, hub, admission, cfg)
+	chatSvc := session.NewChatService(hub, cfg)
+	chatHandler := session.NewChatHandler(chatSvc, hub, admission, cfg)
 	r, err := router.NewRouter(chatHandler, hub, logger)
 	if err != nil {
 		return err
@@ -84,6 +84,7 @@ func run(ctx context.Context, logger zerolog.Logger) error {
 	if shutdownErr != nil {
 		_ = server.Close()
 	}
+
 	if waitErr := hub.Wait(shutdown); waitErr != nil {
 		return waitErr
 	}
@@ -92,6 +93,7 @@ func run(ctx context.Context, logger zerolog.Logger) error {
 	if err != nil {
 		return err
 	}
+
 	if shutdownErr != nil {
 		return shutdownErr
 	}
@@ -100,7 +102,7 @@ func run(ctx context.Context, logger zerolog.Logger) error {
 	return nil
 }
 
-func monitor(ctx context.Context, hub *chat.Hub, admission *middleware.Admission, logger zerolog.Logger) {
+func monitor(ctx context.Context, hub *session.Hub, admission *middleware.Admission, logger zerolog.Logger) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -115,6 +117,7 @@ func monitor(ctx context.Context, hub *chat.Hub, admission *middleware.Admission
 			if err != nil {
 				continue
 			}
+
 			var memory runtime.MemStats
 			runtime.ReadMemStats(&memory)
 			logger.Info().Str("event", "hub_status").Int("connections", snapshot.Connections).

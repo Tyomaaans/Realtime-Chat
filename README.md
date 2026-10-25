@@ -1,99 +1,162 @@
 # Realtime Chat
 
-Anonymous one-to-one text chat built with Go, Gin, Gorilla WebSocket, React, TypeScript, Vite, and Tailwind CSS. Visitors join a waiting queue, meet a stranger, and can leave or find someone new at any time.
+An anonymous one-to-one text chat built with Go, Gin, Gorilla WebSocket, React, TypeScript, and Tailwind CSS. Visitors join a waiting queue, exchange messages with a partner, and can end the conversation or find someone new.
 
-![Desktop conversation](docs/screenshots/desktop.png)
+## Features
 
-<img src="docs/screenshots/mobile.png" alt="Chat interface at 320px width" width="320" />
+- FIFO matchmaking with cancellation and a two-minute queue timeout.
+- Stop and Next actions with confirmation before ending a conversation.
+- Text messages, server acknowledgements, and typing indicators.
+- Room validation and prevention of immediate rematches with the last partner.
+- Connection quotas, rate limits, and bounded delivery buffers.
+- Automatic reconnect with a manual retry after five attempts.
+- Responsive layout, keyboard shortcuts, and IME input support.
+- In-memory sessions with no accounts or saved transcripts.
+
+## Main routes
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/health` | Process health |
+| GET | `/ready` | Whether the chat hub accepts connections |
+| GET | `/v1/chat/ws` | WebSocket connection for an anonymous session |
+
+The WebSocket route requires an allowed browser Origin. Commands cover queue join/cancel, message sending, typing, Stop, and Next. See the [WebSocket contract](backend/docs/websocket.md) for payloads, events, and limits.
+
+## Project structure
+
+```text
+.
+├── backend
+│   ├── docs
+│   ├── internal
+│   │   ├── chat
+│   │   │   ├── domain
+│   │   │   └── session
+│   │   ├── config
+│   │   ├── middleware
+│   │   └── router
+│   ├── pkg
+│   ├── scripts
+│   │   └── load-test
+│   ├── .env.example
+│   ├── main.go
+│   └── Makefile
+├── frontend
+│   ├── e2e
+│   ├── src
+│   │   ├── components
+│   │   │   └── ui
+│   │   ├── features
+│   │   │   └── chat
+│   │   ├── pages
+│   │   ├── styles
+│   │   ├── test
+│   │   ├── app.tsx
+│   │   └── main.tsx
+│   └── .env.example
+├── Makefile
+└── README.md
+```
+
+The backend groups domain entities and session handling under the chat module. Handlers manage WebSocket connections, services validate commands, and the hub owns queue and room state. DTOs, request decoding, and response mapping stay beside the session code. Shared ID and token-bucket helpers live in `pkg`.
+
+The frontend keeps chat components, state, protocol validation, and connection handling in `features/chat`. Shared UI components stay in `components/ui`, and tests sit beside the code they cover.
 
 ## Run locally
 
-Requirements: Go 1.26 or newer, Node 22.22.1, and npm. Development and tests were run with Go 1.26.4 and npm 9.2.0. Fonts are bundled locally. No database, cache, account, container, or external service is required.
+Requirements:
 
-```sh
+- Go 1.26 or newer
+- Node.js 22.22.1, as specified in `.nvmrc`
+- npm
+
+From the repository root:
+
+```bash
 make install
 ```
 
-Start the backend in one terminal:
+Start the backend and frontend in separate terminals:
 
-```sh
+```bash
 make backend
 ```
 
-Start the frontend in another:
-
-```sh
+```bash
 make frontend
 ```
 
-Open **http://localhost:5173**. The backend binds to **127.0.0.1:8080**. Vite proxies `/v1`, `/health`, and `/ready`, including the WebSocket upgrade. Use `localhost` in the browser URL to match the allowed Origin. Stop each process with Ctrl+C; the backend closes active sockets and allows up to 10 seconds for shutdown.
+- **Frontend:** `http://localhost:5173`
+- **Backend:** `http://127.0.0.1:8080`
+- **WebSocket:** `ws://localhost:5173/v1/chat/ws`
 
-The equivalent commands are `go mod download` and `go run .` from `backend/`, and `npm ci` and `npm run dev` from `frontend/`.
+Vite proxies `/v1`, `/health`, and `/ready` to the backend. Open the frontend with `localhost` to match the default allowed Origin. No database or external service is required. Fonts are bundled with the frontend.
 
-Defaults work without an `.env` file. See [.env.example](.env.example) for all backend settings and units. The application reads exported environment variables; it does not load `.env` files automatically. To customize settings in a shell:
+Defaults work without an environment file. The backend reads exported variables. To use the example configuration, run this from `backend/`:
 
-```sh
-export CHAT_ADDRESS=127.0.0.1:8080
-export CHAT_ORIGINS=http://localhost:5173
-make backend
+```bash
+cp .env.example .env
+set -a
+source .env
+set +a
+make run
 ```
 
-For a different backend port, also export `CHAT_PROXY_TARGET=http://127.0.0.1:<port>` before starting Vite. This setting is used by the local dev server, not exposed as a browser secret.
+Vite loads `frontend/.env` automatically. If the backend port changes, copy `frontend/.env.example` to `frontend/.env` and update `CHAT_PROXY_TARGET`.
 
-If you change server message or frame limits, update the matching browser limits in `frontend/src/config/chat.ts` as well.
+## Configuration
 
-## Try a conversation
+| Variable | Default | Description |
+| --- | --- | --- |
+| `CHAT_ADDRESS` | `127.0.0.1:8080` | Loopback IP and HTTP port |
+| `CHAT_ORIGINS` | `http://localhost:5173` | Comma-separated allowed browser origins |
+| `CHAT_MAX_CONNECTIONS` | `500` | Total reserved and active connections |
+| `CHAT_MAX_CONNECTIONS_PER_IP` | `5` | Connections per IP address |
+| `CHAT_QUEUE_CAPACITY` | `500` | Maximum waiting sessions |
+| `CHAT_COMMAND_BUFFER` | `256` | Pending hub commands |
+| `CHAT_OUTBOUND_BUFFER` | `32` | Pending events per connection |
+| `CHAT_FRAME_BYTES` | `8192` | Maximum WebSocket frame size |
+| `CHAT_MESSAGE_CHARACTERS` | `2000` | Maximum Unicode code points per message |
+| `CHAT_MESSAGE_BYTES` | `8000` | Maximum UTF-8 bytes per message |
+| `CHAT_QUEUE_WAIT` | `120s` | Queue timeout |
+| `CHAT_SHUTDOWN_TIMEOUT` | `10s` | Graceful shutdown deadline |
+| `CHAT_PROXY_TARGET` | `http://127.0.0.1:8080` | Frontend development proxy target |
 
-1. Open two tabs or browser windows and select **Start chatting** in each.
-2. Send a message. Enter sends; Shift+Enter adds a line. Messages appear after the server echo, and the other tab can see typing status.
-3. Select **Next person** and confirm. Open a third tab and start chatting to provide a new partner. The previous partner stays idle.
-4. Select **Stop** and confirm, or close a partner's tab. Both clients clear the conversation. Use **Find someone** to start again.
+See [backend/.env.example](backend/.env.example) for heartbeat, handshake, and limiter settings. Durations use Go units such as `ms`, `s`, and `m`. If message or frame limits change, update the matching [frontend configuration](frontend/src/features/chat/config.ts).
 
-Two previous partners will not immediately match again while their connections remain alive. Each tab is a separate anonymous session, subject to the default five-connection limit for the local IP. Waiting ends after two minutes. Reconnection returns to idle and never queues the visitor or resends messages automatically.
+## Chat workflow
 
-## What is implemented
+1. Open two tabs and select **Start chatting** in both.
+2. Send a message with Enter; use Shift+Enter for a new line.
+3. Select **Next person** and confirm to end the current room and enter the queue again. A third tab can provide a new partner.
+4. Select **Stop** and confirm, or close one tab, to end the conversation.
 
-- FIFO matchmaking, cancellation, Stop, Next, and partner departure notices.
-- Server-generated rooms and messages, text validation, typing, and stale-room guards.
-- Bounded queue, command channel, outbound buffers, connection quotas, and rate limits.
-- Strict browser Origin checks, safe public errors, pong/write deadlines, and explicit WebSocket shutdown.
-- Responsive chat UI, confirmation dialogs, keyboard and IME support, scroll handling, and bounded reconnect attempts.
-- Backend behavior and race tests, frontend lifecycle tests, browser coverage, and a local load test runner.
+The former partner stays idle after Next. Previous partners cannot immediately match again while either connection still remembers the pairing. Each tab has its own anonymous session and shares the local IP connection quota.
 
-## Privacy
+A reconnect starts a fresh idle session. It does not rejoin the queue or resend messages. Messages appear after the server acknowledgement; this does not confirm that the partner read them.
 
-The application has no database or saved transcript. Connections, matching, limits, and delivery buffers live in server RAM. Browser transcripts and drafts also stay in memory; the tab retains at most 200 messages and announces when earlier ones are removed. Leaving, changing partners, disconnecting, refreshing, or closing the page clears that conversation in the application.
+Messages and drafts stay in memory and clear when the conversation ends or the connection is lost. A tab retains at most 200 messages. The server processes text for delivery and IP addresses for rate limits; logs contain aggregate operational data. Users can copy messages, and content is not moderated. Local HTTP/WebSocket traffic is unencrypted.
 
-The other person can copy or screenshot messages. User content is not moderated. The server reads text to relay it and processes IP addresses in memory for basic limits. Logs contain operational metadata, with no message text, drafts, raw session IDs, or full visitor IPs. Local HTTP/WS is unencrypted; this is not end-to-end encryption. The project makes no forensic RAM-erasure guarantee.
+## Development checks
 
-## Verification
+From the repository root:
 
-```sh
+```bash
+make format
 make check
-
-cd frontend
-npx playwright install chromium
-npm run test:browser
+make build
+make test-critical
 ```
 
-Playwright starts the real local backend and Vite when they are not already running. It uses three independent browser contexts and no database. The test server raises only handshake rate limits to accommodate browser lifecycle checks; ordinary connection, command, and payload limits remain in place. Default limits are tested separately in Go.
+Formatting uses gofmt for Go and Prettier for the frontend. `make check` runs formatting checks, Go vet, frontend lint, TypeScript compilation, and the frontend build. `make build` also compiles the backend and load-test runner.
 
-[Testing notes](docs/testing.md) describe coverage, measured results, and load-test setup. Load tests run separately from normal checks and require explicit loopback quota overrides.
+`make test-critical` runs selected backend tests with race detection for matching, room isolation, payload validation, admission, concurrent disconnects, and shutdown. Frontend checks cover event validation, session state, and connection lifecycle.
 
-On the documented local machine, 500 sockets exchanging one message per visitor every five seconds ran for 10 minutes with no errors or missing receipts and a p95 relay time of 2.098 ms. A synchronized five-message burst at 500 sockets exceeded the fixed command buffer and closed connections under the overload policy. See the report for the full traffic profile and limitations.
+Full unit tests, browser scenarios, and load tests are available separately through `make test`, `make browser`, and `make load`. See [testing](backend/docs/testing.md) for setup and commands.
 
-## Design
+## Documentation
 
-```text
-Browser <-> Vite proxy <-> Gin handler -> ChatService -> Hub
-                                                        |
-                                               queue and rooms
-                                                        |
-                                               bounded buffers
-                                                        |
-                                                 socket writers
-```
-
-The handler owns admission and the upgrade. The service validates commands. One hub event loop owns queue and room mutations; each connection has one read pump and one write pump. The frontend connection hook owns session state, messages, timers, and actions. Logs use zerolog. See [architecture](docs/architecture.md) and the [WebSocket contract](docs/websocket.md).
-
-This is a single-process local application. Multiple instances would split queues and need shared matchmaking coordination and transient routing between connection owners. That infrastructure, public hosting, CI/CD, and deployment are outside this version's scope.
+- [Architecture](backend/docs/architecture.md)
+- [WebSocket contract](backend/docs/websocket.md)
+- [Testing and load results](backend/docs/testing.md)

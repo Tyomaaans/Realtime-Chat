@@ -1,4 +1,7 @@
 .env
+**/.env
+backend/.cache/
+backend/bin/
 backend/realtime-chat
 frontend/node_modules/
 frontend/dist/

@@ -8,7 +8,7 @@ const (
 	Matched ChatState = "matched"
 )
 
-type Client struct {
+type ClientEntity struct {
 	ID          string
 	State       ChatState
 	RoomID      string

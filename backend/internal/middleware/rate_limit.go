@@ -1,37 +1,16 @@
 package middleware
 
 import (
-	"math"
+	"net/http"
 	"sync"
 	"time"
 
 	"realtime-chat/internal/config"
+	"realtime-chat/pkg"
 )
 
-type Bucket struct {
-	tokens   float64
-	capacity float64
-	rate     float64
-	updated  time.Time
-}
-
-func NewBucket(capacity int, rate float64, now time.Time) Bucket {
-	return Bucket{tokens: float64(capacity), capacity: float64(capacity), rate: rate, updated: now}
-}
-
-func (b *Bucket) Take(now time.Time) time.Duration {
-	elapsed := math.Max(0, now.Sub(b.updated).Seconds())
-	b.tokens = math.Min(b.capacity, b.tokens+elapsed*b.rate)
-	b.updated = now
-	if b.tokens < 1 {
-		return time.Duration(math.Ceil((1-b.tokens)/b.rate*1000)) * time.Millisecond
-	}
-	b.tokens--
-	return 0
-}
-
 type ipEntry struct {
-	bucket   Bucket
+	bucket   pkg.TokenBucket
 	lastSeen time.Time
 	active   int
 }
@@ -45,33 +24,41 @@ type Admission struct {
 }
 
 func NewAdmission(cfg config.AppConfig) *Admission {
-	return &Admission{cfg: cfg, entries: make(map[string]*ipEntry)}
+	return &Admission{
+		cfg:     cfg,
+		entries: make(map[string]*ipEntry),
+	}
 }
 
 func (a *Admission) Reserve(ip string, now time.Time) (func(), int, time.Duration) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.closed || a.active >= a.cfg.MaxConnections {
-		return nil, 503, time.Second
+		return nil, http.StatusServiceUnavailable, time.Second
 	}
+
 	entry := a.entries[ip]
 	if entry == nil {
 		if len(a.entries) >= a.cfg.IPLimiterEntries {
 			a.cleanup(now)
 			if len(a.entries) >= a.cfg.IPLimiterEntries {
-				return nil, 429, time.Minute
+				return nil, http.StatusTooManyRequests, time.Minute
 			}
 		}
-		entry = &ipEntry{bucket: NewBucket(a.cfg.HandshakeBurst, float64(a.cfg.HandshakesPerMinute)/60, now)}
+
+		entry = &ipEntry{bucket: pkg.NewTokenBucket(a.cfg.HandshakeBurst, float64(a.cfg.HandshakesPerMinute)/60, now)}
 		a.entries[ip] = entry
 	}
+
 	entry.lastSeen = now
 	if retry := entry.bucket.Take(now); retry > 0 {
-		return nil, 429, retry
+		return nil, http.StatusTooManyRequests, retry
 	}
+
 	if entry.active >= a.cfg.MaxConnectionsPerIP {
-		return nil, 429, time.Second
+		return nil, http.StatusTooManyRequests, time.Second
 	}
+
 	entry.active++
 	a.active++
 	var once sync.Once

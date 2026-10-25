@@ -5,10 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "build": "tsc --noEmit && vite build",
     "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "tsc --noEmit && vite build",
+    "test:critical": "vitest run src/features/chat/protocol.test.ts src/features/chat/state.test.ts src/features/chat/hooks/use-chat.test.tsx",
     "test:browser": "playwright test"
   },
   "dependencies": {
@@ -31,6 +34,7 @@
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "17.13.0",
     "jsdom": "29.1.1",
+    "prettier": "3.9.10",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "typescript-eslint": "8.72.0",

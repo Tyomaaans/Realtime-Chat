@@ -12,6 +12,12 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.browser, ...globals.node } },
     plugins: { "react-hooks": hooks },
     rules: {
+      curly: ["error", "all"],
+      "sort-imports": ["error", { ignoreDeclarationSort: true }],
+      "padding-line-between-statements": [
+        "error",
+        { blankLine: "always", prev: ["if", "for", "while", "switch", "try"], next: "*" },
+      ],
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "error",
     },

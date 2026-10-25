@@ -1,6 +1,6 @@
 package domain
 
-type Room struct {
+type RoomEntity struct {
 	ID      string
 	Members [2]string
 }
